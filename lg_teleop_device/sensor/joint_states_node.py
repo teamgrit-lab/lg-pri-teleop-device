@@ -27,14 +27,17 @@ class JointStatesNode(AbstractTeleopNode):
         )
 
         self.json_str = {
-            'name': ['' for i in range(14)],
-            'position': [0.0 for i in range(14)]
+            'name': [],
+            'position': []
         }
+        self.name_to_index = {}
 
         self.mime = f"test/json"
         self.create_timer(0.02, self.timer_callback)
 
     def timer_callback(self):
+        if not self.json_str['name']:
+            return
         self.message.append(json.dumps(self.json_str).encode('utf-8'))
 
     def get_topic_type(self, topic_name):
@@ -46,16 +49,23 @@ class JointStatesNode(AbstractTeleopNode):
 
     def callback(self, msg):
         try:
-            if 'j2_right' in msg.name:
-                for i in range(len(msg.name)):
-                    self.json_str['name'][i+2] = msg.name[i]
-                    self.json_str['position'][i+2] = msg.position[i]
-            elif 'joint_1' in msg.name:
-                self.json_str['name'][0] = msg.name[0]
-                self.json_str['position'][0] = msg.position[0]
-            elif 'joint_2' in msg.name:
-                self.json_str['name'][1] = msg.name[0]
-                self.json_str['position'][1] = msg.position[0]
+            # 초기 메시지에서 동적 초기화
+            if not self.json_str['name']:
+                self.json_str['name'] = list(msg.name)
+                self.json_str['position'] = list(msg.position)
+                self.name_to_index = {name: i for i, name in enumerate(self.json_str['name'])}
+                return
+
+            # 이후 메시지는 이름 기준으로 위치값 업데이트/추가
+            for i, name in enumerate(msg.name):
+                if name in self.name_to_index:
+                    idx = self.name_to_index[name]
+                    if i < len(msg.position):
+                        self.json_str['position'][idx] = msg.position[i]
+                else:
+                    self.name_to_index[name] = len(self.json_str['name'])
+                    self.json_str['name'].append(name)
+                    self.json_str['position'].append(msg.position[i] if i < len(msg.position) else 0.0)
 
         except Exception as e:
             self.get_logger().error(f"[{self.name}] Failed to deserialize message: {e}")
