@@ -1,0 +1,13 @@
+# ROS 2 / colcon
+build/
+install/
+log/
+.colcon/
+.colcon_ignore
+colcon.meta
+
+# OS files
+.DS_Store
+Thumbs.db
+
+
