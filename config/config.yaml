@@ -1,0 +1,51 @@
+host: "" #teleop 서버 주소 ex. 192.168.0.0
+port: "8276"
+robot_id: "" #로봇관리에서 발급받은 로봇ID
+publish:
+  medias_topics:
+  #   - name: left_camera
+  #     topic: /camera/camera_right/color/image_raw
+  #     endpoint: "/pang/ws/pub?channel=instant&name=#####&track=left_camera&mode=bundle"
+  #     width: "640"
+  #     height: "480"
+  #   - name: right_camera
+  #     topic: /camera/camera_left/color/image_raw
+  #     endpoint: "/pang/ws/pub?channel=instant&name=#####&track=right_camera&mode=bundle"
+  #     width: "640"
+  #     height: "480"
+  #   - name: head_camera
+  #     topic: /camera/camera_head/color/image_raw
+  #     endpoint: "/pang/ws/pub?channel=instant&name=#####&track=head_camera&mode=bundle"
+  #     width: "640"
+  #     height: "480"
+
+  sensor:
+    - name: joint_states
+      topic: /joint_states
+      endpoint: "/pang/ws/pub?channel=instant&name=#####&track=joint_states&mode=bundle"
+
+  # lidar:
+  #   - name: lidar
+  #     pointcloud_topic1: /points
+  #     endpoint: "/pang/ws/pub?channel=instant&name=#####&track=draco&mode=bundle"
+
+subscribe:
+  control_topics:
+  #  - name: waist_control
+  #    topic: /motor_target_position
+  #    endpoint: "/pang/ws/pub?channel=instant&name=#####&track=waist&mode=bundle"
+  #    waist_control_speed_mm_per_sec: 20.0
+  #  - name: gamepad_control
+  #    topic: /joy
+  #    endpoint: "/pang/ws/pub?channel=instant&name=#####&track=amr&mode=bundle"
+  #  - name: left_arm
+  #    tf_target_frame: "ee_fixed_frame_left"
+  #    endpoint: "/pang/ws/pub?channel=instant&name=#####&track=left_arm&mode=bundle"
+  #  - name: right_arm
+  #    tf_target_frame: "ee_fixed_frame_right"
+  #    endpoint: "/pang/ws/pub?channel=instant&name=#####&track=right_arm&mode=bundle"
+  #  - name: head
+  #    endpoint: "/pang/ws/pub?channel=instant&name=#####&track=head&mode=bundle"
+  #  - name: joint_states
+  #    topic: /joint_states
+  #    endpoint: "/pang/ws/sub?channel=instant&name=#####&track=joint_states&mode=bundle"
