@@ -149,7 +149,7 @@ def generate_launch_description():
                             {'host': config['host']},
                             {'port': int(config['port'])},
                             {'endpoint': str(control['endpoint']).replace("#####", robot_id)},
-                            {'topic_name': control['topic']}
+                            {'topic': control['topic']}
                         ]
                     ))
 
