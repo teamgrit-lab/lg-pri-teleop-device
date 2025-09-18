@@ -34,6 +34,8 @@ ros2 launch lg_teleop_device lg_teleop_device_launch.py
 - **host**: Teleop 서버 주소(예: `192.168.0.10`)
 - **port**: Teleop 서버 포트(예: `8276`)
 - **robot_id**: 로봇관리에서 발급받은 로봇 ID. 아래 `endpoint`에 있는 `#####` 자리표시는 런치 시 자동으로 `robot_id`로 치환됩니다.
+<img width="2940" height="1666" alt="image" src="https://github.com/user-attachments/assets/3ef88da1-eb41-48a1-8b78-c2523d9d1ae6" />
+
 
 #### publish 섹션
 
