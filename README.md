@@ -34,9 +34,7 @@ ros2 launch lg_teleop_device lg_teleop_device_launch.py
 - **host**: Teleop 서버 주소(예: `192.168.0.10`)
 - **port**: Teleop 서버 포트(예: `8276`)
 - **robot_id**: 로봇관리에서 발급받은 로봇 ID. 아래 `endpoint`에 있는 `#####` 자리표시는 런치 시 자동으로 `robot_id`로 치환됩니다.
-<img width="2913" height="1638" alt="image" src="https://github.com/user-attachments/assets/072f4c16-31a1-4027-b300-160ccc47ca6e" />
-
-
+  <img width="2913" height="1638" alt="image" src="https://github.com/user-attachments/assets/072f4c16-31a1-4027-b300-160ccc47ca6e" />
 
 #### publish 섹션
 
@@ -47,9 +45,20 @@ ros2 launch lg_teleop_device lg_teleop_device_launch.py
   - `width`/`height`: 전송 해상도. GStreamer 파이프라인에 반영됩니다
 - **sensor**: 센서 값을 JSON 등으로 전송합니다
   - 예시 `joint_states`는 `sensor_msgs/JointState`를 읽어 JSON으로 서버에 보냅니다
+  - 기본값: `config/config.yaml`의 `sensor`에 `joint_states` 항목이 활성화되어 있으며 `endpoint`의 `track`은 `robot_joint_states`입니다
 - **lidar**: 포인트클라우드(`sensor_msgs/PointCloud2`)를 Draco로 압축해 전송합니다
   - `pointcloud_topic1`: 입력 포인트클라우드 토픽
   - TF에서 `base_link`로 변환을 시도하므로 해당 TF가 제공되어야 합니다
+
+##### 토픽별 메시지 타입 표
+
+| 토픽                                   | 메시지 타입               |
+| -------------------------------------- | ------------------------- |
+| `/camera/camera_right/color/image_raw` | `sensor_msgs/Image`       |
+| `/camera/camera_left/color/image_raw`  | `sensor_msgs/Image`       |
+| `/camera/camera_head/color/image_raw`  | `sensor_msgs/Image`       |
+| `/joint_states`                        | `sensor_msgs/JointState`  |
+| `/points`                              | `sensor_msgs/PointCloud2` |
 
 예시(publish 일부만 발췌):
 
@@ -67,7 +76,7 @@ publish:
   sensor:
     - name: joint_states
       topic: /joint_states
-      endpoint: "/pang/ws/pub?channel=instant&name=#####&track=joint_states&mode=bundle"
+      endpoint: "/pang/ws/pub?channel=instant&name=#####&track=robot_joint_states&mode=bundle"
 ```
 
 #### subscribe 섹션
@@ -81,6 +90,14 @@ publish:
   - `left_arm`/`right_arm`: `tf_target_frame`을 기준으로 팔 제어(세부는 로봇별 구현에 의존)
   - `head`: 헤드 제어 입력 처리
   - `joint_states`: 서버에서 받은 조인트 상태를 로컬 토픽으로 재발행
+
+##### 구독(subscribe) 토픽별 메시지 타입 표
+
+| 토픽                     | 메시지 타입              |
+| ------------------------ | ------------------------ |
+| `/joy`                   | `sensor_msgs/Joy`        |
+| `/motor_target_position` | `std_msgs/Int32`         |
+| `/joint_states`          | `sensor_msgs/JointState` |
 
 예시(subscribe 일부만 발췌):
 

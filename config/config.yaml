@@ -22,12 +22,12 @@ publish:
   sensor:
     - name: joint_states
       topic: /joint_states
-      endpoint: "/pang/ws/pub?channel=instant&name=#####&track=joint_states&mode=bundle"
+      endpoint: "/pang/ws/pub?channel=instant&name=#####&track=robot_joint_states&mode=bundle"
 
   # lidar:
   #   - name: lidar
   #     pointcloud_topic1: /points
-  #     endpoint: "/pang/ws/pub?channel=instant&name=#####&track=draco&mode=bundle"
+  #     endpoint: "/pang/ws/pub?channel=instant&name=#####&track=point_cloud&mode=bundle"
 
 subscribe:
   control_topics:
@@ -48,4 +48,4 @@ subscribe:
   #    endpoint: "/pang/ws/pub?channel=instant&name=#####&track=head&mode=bundle"
   #  - name: joint_states
   #    topic: /joint_states
-  #    endpoint: "/pang/ws/sub?channel=instant&name=#####&track=joint_states&mode=bundle"
+  #    endpoint: "/pang/ws/sub?channel=instant&name=#####&track=skeleton_joint_states&mode=bundle"
