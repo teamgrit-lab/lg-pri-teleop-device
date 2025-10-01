@@ -100,6 +100,22 @@ def generate_launch_description():
                             {'gamepad_control_topic': control['topic']}
                         ]
                     ))
+                elif control['name'] == 'skeleton_gamepad_control':
+                    nodes.append(Node(
+                        package='lg_teleop_device',
+                        executable='skeleton_gamepad_control_node',
+                        name=control['name'],
+                        parameters=[
+                            {'name': control['name']},
+                            {'host': config['host']},
+                            {'port': int(config['port'])},
+                            {'endpoint': str(control['endpoint']).replace("#####", robot_id)},
+                            {'gamepad_control_topic': control.get('topic', '/gamepad_control')},
+                            {'tf_target_frame': control.get('tf_target_frame', 'wrist3_link')},
+                            {'gripper_button_index': control.get('gripper_button_index', 0)},
+                            {'handedness': control.get('handedness', 'right')},
+                        ]
+                    ))
                 elif control['name'] == 'waist_control':
                     nodes.append(Node(
                         package='lg_teleop_device',
