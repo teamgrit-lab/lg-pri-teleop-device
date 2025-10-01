@@ -30,6 +30,7 @@ setup(
             'head_control_node = lg_teleop_device.control.head_control_node:main',
             'twist_control_node = lg_teleop_device.control.twist_control_node:main',
             'gamepad_control_node = lg_teleop_device.control.gamepad_control_node:main',
+            'skeleton_gamepad_control_node = lg_teleop_device.control.skeleton_gamepad_control_node:main',
             'joint_states_node = lg_teleop_device.sensor.joint_states_node:main',
             'joint_states_subscription_node = lg_teleop_device.sensor.joint_states_subscription_node:main',
             'network_node = lg_teleop_device.network.network:main',
