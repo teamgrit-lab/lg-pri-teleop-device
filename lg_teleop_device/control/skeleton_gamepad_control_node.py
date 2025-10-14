@@ -68,7 +68,7 @@ class SkeletonGamepadControlNode(AbstractTeleopNode):
             if 'axes' in data:
                 msg = Joy()
                 msg.axes = list(map(float, data['axes']))
-                msg.buttons = list(map(float, data.get('buttons', [])))
+                msg.buttons = list(map(int, data.get('buttons', [])))
                 self.publisher.publish(msg)
 
             # Handle gripper on button rising edge
