@@ -38,12 +38,24 @@ subscribe:
   #  - name: gamepad_control
   #    topic: /joy
   #    endpoint: "/pang/ws/pub?channel=instant&name=#####&track=amr&mode=bundle"
-  #  - name: skeleton_gamepad_control
-  #    topic: /gamepad_control
-  #    endpoint: "/pang/ws/pub?channel=instant&name=#####&track=skeleton_gamepad&mode=bundle"
+  #  - name: left_skeleton_gamepad_control
+  #    topic: /left_skeleton_gamepad_control
+  #    endpoint: "/pang/ws/sub?channel=instant&name=#####&track=left_skeleton_gamepad&mode=bundle"
+  #    tf_target_frame: "wrist3_link"
+  #    gripper_button_index: 0
+  #    handedness: "left"
+  #  - name: right_skeleton_gamepad_control
+  #    topic: /right_skeleton_gamepad_control
+  #    endpoint: "/pang/ws/sub?channel=instant&name=#####&track=right_skeleton_gamepad&mode=bundle"
   #    tf_target_frame: "wrist3_link"
   #    gripper_button_index: 0
   #    handedness: "right"
+  #  - name: left_skeleton_joy
+  #    topic: /left_skeleton_joy
+  #    endpoint: "/pang/ws/sub?channel=instant&name=#####&track=left_skeleton_gamepad&mode=bundle"
+  #  - name: right_skeleton_joy
+  #    topic: /right_skeleton_joy
+  #    endpoint: "/pang/ws/sub?channel=instant&name=#####&track=right_skeleton_gamepad&mode=bundle"
   #  - name: left_arm
   #    tf_target_frame: "ee_fixed_frame_left"
   #    endpoint: "/pang/ws/pub?channel=instant&name=#####&track=left_arm&mode=bundle"
