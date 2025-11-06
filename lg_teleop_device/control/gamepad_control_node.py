@@ -30,7 +30,7 @@ class GamepadControlNode(AbstractTeleopNode):
             data = json.loads(message)
 #            self.get_logger().info(f"{type(data['axes'][0])}")
             gamepad_msg.axes = list(map(float, data['axes']))
-            gamepad_msg.buttons = list(map(float, data.get('buttons', [])))
+            gamepad_msg.buttons = list(map(int, data.get('buttons', [])))
             self.get_logger().info(f"[{self.name}] Publishing Gamepad message: {gamepad_msg}")
             self.publisher.publish(gamepad_msg)
         except Exception as e:
