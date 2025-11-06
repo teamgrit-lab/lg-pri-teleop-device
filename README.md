@@ -10,10 +10,10 @@ TeamGRIT의 미디어 스트리밍 서버를 활용해 멀티 모달 데이터(�
 
 ### 주요 기능
 
-- **미디어 스트리밍**: `sensor_msgs/Image`를 서버로 전송하여 저지연 영상 스트림 제공
+- **미디어 스트리밍**: `sensor_msgs/Image`데이터를 압축하여 서버로 전송하여 저지연 영상 스트림 제공
 - **센서 브리지**: `sensor_msgs/JointState` 등 센서 데이터를 JSON 등으로 변환해 전송
 - **3D point cloud 전송**: `sensor_msgs/PointCloud2`를 Draco로 압축해 대역폭 효율적으로 전송
-- **제어 입력 구독/발행**: 원격 입력을 ROS 토픽(`sensor_msgs/Joy`, `std_msgs/Int32` 등)으로 재발행
+- **제어 입력 구독/발행**: 원격 입력을 ROS 토픽(`sensor_msgs/Joy` 등)으로 재발행
 - **동적 런치**: `config/config.yaml`만 수정하면 필요한 노드를 선택적으로 실행
 
 ### 빠른 시작
