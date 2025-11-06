@@ -1,12 +1,36 @@
-# lg-pri
+# lg-pri-teleop-device
+
+TeamGRIT의 미디어 스트리밍 서버를 활용해 멀티 모달 데이터(영상, 센서, 3D point cloud, 제어 입력)를 네트워크 상에서 주고받을 수 있도록 중계하는 ROS 2 엔드포인트 패키지입니다. 로봇 단의 ROS 토픽과 원격(PC/VR/다른 ROS 시스템) 간의 데이터 전달을 간단히 구성할 수 있습니다.
+
+### 지원 연동 시나리오
+
+- **ROS → ROS**: 원격지 ROS 시스템과 주고받기
+- **ROS → PC**: 브라우저·데스크톱 앱에서 영상/센서 스트림 시청 및 제어 입력 전송
+- **ROS → VR**: VR 클라이언트로 멀티 모달 스트림 전달 및 입력 반영
+
+### 주요 기능
+
+- **미디어 스트리밍**: `sensor_msgs/Image`를 서버로 전송하여 저지연 영상 스트림 제공
+- **센서 브리지**: `sensor_msgs/JointState` 등 센서 데이터를 JSON 등으로 변환해 전송
+- **3D point cloud 전송**: `sensor_msgs/PointCloud2`를 Draco로 압축해 대역폭 효율적으로 전송
+- **제어 입력 구독/발행**: 원격 입력을 ROS 토픽(`sensor_msgs/Joy`, `std_msgs/Int32` 등)으로 재발행
+- **동적 런치**: `config/config.yaml`만 수정하면 필요한 노드를 선택적으로 실행
+
+### 빠른 시작
+
+사전 준비
+
+- ROS 2 워크스페이스에 본 패키지가 포함되어 있어야 합니다
+- TeamGRIT 미디어 스트리밍 서버의 `host`/`port` 정보
+- 로봇관리에서 발급받은 `robot_id`
+
+빌드
 
 ```
-cd ~/teamgrit_ws/src/lg-pri-device-py
-git pull
 colcon build
 ```
 
-hula와 관련된 별도의 msg 타입이 있다면 colcon build 수행 전에 다음 명령어를 실행해주세요
+만약 hula 관련 별도 메시지 타입을 사용한다면 빌드 전에 다음을 실행하세요
 
 ```
 source ~/hula/install/setup.bash
@@ -34,7 +58,7 @@ ros2 launch lg_teleop_device lg_teleop_device_launch.py
 - **host**: Teleop 서버 주소(예: `192.168.0.10`)
 - **port**: Teleop 서버 포트(예: `8276`)
 - **robot_id**: 로봇관리에서 발급받은 로봇 ID. 아래 `endpoint`에 있는 `#####` 자리표시는 런치 시 자동으로 `robot_id`로 치환됩니다.
-  <img width="2913" height="1638" alt="image" src="https://github.com/user-attachments/assets/072f4c16-31a1-4027-b300-160ccc47ca6e" />
+  <img  alt="image" src="https://github.com/user-attachments/assets/072f4c16-31a1-4027-b300-160ccc47ca6e" />
 
 #### publish 섹션
 
