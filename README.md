@@ -151,3 +151,10 @@ subscribe:
 - 런치는 `config.yaml`의 최상위 `host`/`port`를 각 노드 파라미터로 전달하고, 각 항목의 `endpoint`에서 `#####`를 `robot_id`로 치환합니다
 - 토픽 존재 여부는 `ros2 topic list`, 메시지 타입은 `ros2 topic info`로 확인할 수 있습니다
 - LiDAR는 프레임 변환(`base_link` 기준)과 대역폭을 고려해 포인트 수와 해상도를 조정하세요
+
+### Skeleton Joy 정보
+
+`left_skeleton_joy`, `right_skeleton_joy`의 경우 아래의 이미지 규격에 따라 axes와 buttons를 `sensor_msgs/Joy` 타입으로 전송합니다.
+
+<img width="711" height="444" alt="image" src="https://github.com/user-attachments/assets/629c4195-a1f7-4eb2-8014-d800b92ea040" />
+
