@@ -40,6 +40,7 @@ class JointStatesNode(AbstractTeleopNode):
         if not self.json_str['name']:
             if time.time() - self.ping_timer_ > 5:
                 self.message.append(b"ping")
+                self.ping_timer_ = time.time()
             return
         self.message.append(json.dumps(self.json_str).encode('utf-8'))
         self.ping_timer_ = time.time()
