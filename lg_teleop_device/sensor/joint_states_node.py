@@ -34,11 +34,16 @@ class JointStatesNode(AbstractTeleopNode):
 
         self.mime = f"test/json"
         self.create_timer(0.02, self.timer_callback)
+        self.ping_timer_ = time.time()
 
     def timer_callback(self):
         if not self.json_str['name']:
+            if time.time() - self.ping_timer_ > 5:
+                self.message.append(b"ping")
             return
         self.message.append(json.dumps(self.json_str).encode('utf-8'))
+        self.ping_timer_ = time.time()
+        self.json_str = None
 
     def get_topic_type(self, topic_name):
         topic_info = self.get_topic_names_and_types()
