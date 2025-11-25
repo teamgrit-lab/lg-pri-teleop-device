@@ -55,7 +55,8 @@ class TopicMediaNode(AbstractTeleopNode):
             if self.processing_timer is None:
                 self.processing_timer = time.time()
 
-            buf = Gst.Buffer.new_wrapped(msg.data)
+            buf_data = bytes(msg.data)
+            buf = Gst.Buffer.new_wrapped(buf_data)
             self.src.emit('push-buffer', buf)
 
             if self.processing_timer is not None:
