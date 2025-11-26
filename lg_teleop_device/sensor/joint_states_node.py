@@ -28,7 +28,8 @@ class JointStatesNode(AbstractTeleopNode):
 
         self.json_str = {
             'name': [],
-            'position': []
+            'position': [],
+            'isUpdated': False
         }
         self.name_to_index = {}
 
@@ -37,14 +38,14 @@ class JointStatesNode(AbstractTeleopNode):
         self.ping_timer_ = time.time()
 
     def timer_callback(self):
-        if not self.json_str['name']:
+        if not self.json_str['isUpdated']:
             if time.time() - self.ping_timer_ > 5:
                 self.message.append(b"ping")
                 self.ping_timer_ = time.time()
             return
         self.message.append(json.dumps(self.json_str).encode('utf-8'))
         self.ping_timer_ = time.time()
-        self.json_str = None
+        self.json_str['isUpdated'] = False
 
     def get_topic_type(self, topic_name):
         topic_info = self.get_topic_names_and_types()
@@ -59,6 +60,7 @@ class JointStatesNode(AbstractTeleopNode):
             if not self.json_str['name']:
                 self.json_str['name'] = list(msg.name)
                 self.json_str['position'] = list(msg.position)
+                self.json_str['isUpdated'] = True
                 self.name_to_index = {name: i for i, name in enumerate(self.json_str['name'])}
                 return
 
@@ -72,6 +74,7 @@ class JointStatesNode(AbstractTeleopNode):
                     self.name_to_index[name] = len(self.json_str['name'])
                     self.json_str['name'].append(name)
                     self.json_str['position'].append(msg.position[i] if i < len(msg.position) else 0.0)
+            self.json_str['isUpdated'] = True
 
         except Exception as e:
             self.get_logger().error(f"[{self.name}] Failed to deserialize message: {e}")
