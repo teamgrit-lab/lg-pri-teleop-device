@@ -5,6 +5,7 @@ import DracoPy
 import numpy as np
 import asyncio, time, json
 import threading
+from collections import deque
 from sensor_msgs.msg import PointCloud2
 from tf2_ros import TransformListener, Buffer
 import tf2_sensor_msgs
@@ -42,18 +43,13 @@ class LidarNode(AbstractTeleopNode):
         self.network_time = 0.0
 
         self.mime = "lidar/draco"
+        self._message_queue = deque(maxlen=120)
+        self._send_idle_sleep = 0.002
 
     def point_cloud_callback(self, cloud1):
 
-        point_data1, color_data1, valid_points1 = self.extract_points(cloud1, 3)
-        point_data1 = point_data1[:valid_points1 * 3]
-        color_data1 = color_data1[:valid_points1 * 3]
-        point_data = point_data1
-        color_data = color_data1
+        pts, colors = self.extract_points(cloud1, 3.0)
 
-
-        pts = np.array(point_data, dtype=np.float32).reshape(-1, 3)
-        colors = np.array(color_data, dtype=np.uint8).reshape(-1, 3)
         if pts.size == 0 or colors.size == 0:
             return b''
         if self.processing_timer is not None:
@@ -87,7 +83,7 @@ class LidarNode(AbstractTeleopNode):
             json_str = json.dumps(json_msg)
             # self.network_publisher.publish(String(data=json_str))
             self.fps = 0
-        self.message.append(compressed)
+        self._message_queue.append(compressed)
         if self.read_timer is None:
             self.read_timer = time.time()
         pass
@@ -113,49 +109,68 @@ class LidarNode(AbstractTeleopNode):
     async def on_received(self, message):
         print(f"[{self.name}] Received message: {message}")
 
-    def extract_points(self, cloud_msg, skip_length_):
-        # 1) 준비
+    async def send(self):
+        while True:
+            if self.pass_mime:
+                break
+            if self.mime is None:
+                await asyncio.sleep(0.1)
+                continue
+            await self.websocket.send(self.mime)
+            break
+        while True:
+            if not self._message_queue:
+                await asyncio.sleep(self._send_idle_sleep)
+                continue
+            payload = self._message_queue.popleft()
+            await self.websocket.send(payload)
+            self.fps += 1
+
+    def extract_points(self, cloud_msg, max_distance):
         num_points = cloud_msg.width * cloud_msg.height
+        if num_points == 0:
+            return np.empty((0, 3), dtype=np.float32), np.empty((0, 3), dtype=np.uint8)
+
         point_step = cloud_msg.point_step
         fields = cloud_msg.fields
-        data = cloud_msg.data  # bytes
+        data = cloud_msg.data
 
-        # 2) raw buffer → (N, point_step) uint8 배열
-        raw = np.frombuffer(data, dtype=np.uint8).reshape(num_points, point_step)
+        raw = np.frombuffer(data, dtype=np.uint8, count=num_points * point_step)
+        raw = raw.reshape(num_points, point_step)
 
-        # 3) 각 필드 오프셋
         ofs = {f.name: f.offset for f in fields}
+        if not all(key in ofs for key in ('x', 'y', 'z')):
+            return np.empty((0, 3), dtype=np.float32), np.empty((0, 3), dtype=np.uint8)
 
-        # 4) x,y,z 한 번에 읽기 (각각 shape (N,))
         x = raw[:, ofs['x']:ofs['x']+4].view(np.float32).ravel()
         y = raw[:, ofs['y']:ofs['y']+4].view(np.float32).ravel()
         z = raw[:, ofs['z']:ofs['z']+4].view(np.float32).ravel()
 
-        # 5) NaN & 거리 필터 (제곱근 제거)
-        dist2 = x*x + y*y + z*z
-        mask = (~np.isnan(x)) & (~np.isnan(y)) & (~np.isnan(z)) & (dist2 < skip_length_**2)
+        dist2 = x * x + y * y + z * z
+        max_distance_sq = max_distance * max_distance
+        mask = np.isfinite(x) & np.isfinite(y) & np.isfinite(z) & (dist2 < max_distance_sq)
 
-        x = x[mask];  y = y[mask];  z = z[mask]
+        if not np.any(mask):
+            return np.empty((0, 3), dtype=np.float32), np.empty((0, 3), dtype=np.uint8)
 
-        # 6) RGB가 있으면 한 번에 처리
+        x = x[mask]
+        y = y[mask]
+        z = z[mask]
+        points = np.stack((x, y, z), axis=1).astype(np.float32, copy=False)
+
         if 'rgb' in ofs:
-            rgb_f = raw[:, ofs['rgb']:ofs['rgb']+4].view(np.float32).ravel()
-            rgb_u = rgb_f.view(np.uint32)[mask]
-            # 비트 연산
-            r = ((rgb_u >> 16) & 0xFF).astype(np.uint8)
-            g = ((rgb_u >>  8) & 0xFF).astype(np.uint8)
-            b = ( rgb_u        & 0xFF).astype(np.uint8)
+            rgb = raw[:, ofs['rgb']:ofs['rgb']+4].view(np.uint32).ravel()
+            rgb = rgb[mask]
+            colors = np.stack(
+                ((rgb >> 16) & 0xFF,
+                 (rgb >> 8) & 0xFF,
+                 rgb & 0xFF),
+                axis=1
+            ).astype(np.uint8, copy=False)
         else:
-            # default black
-            n = x.shape[0]
-            r = g = b = np.zeros(n, dtype=np.uint8)
+            colors = np.zeros((points.shape[0], 3), dtype=np.uint8)
 
-        # 7) 결과로 쓸 리스트 생성 (필요하면 NumPy 형태 그대로도 사용 가능)
-        point_data = np.stack([x, y, z], axis=1).ravel().tolist()
-        color_data = np.stack([r, g, b], axis=1).ravel().tolist()
-        valid_points = x.shape[0]
-
-        return point_data, color_data, valid_points
+        return points, colors
 
 
 def main(args=None):
