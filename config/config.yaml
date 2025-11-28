@@ -67,3 +67,16 @@ subscribe:
   #  - name: joint_states
   #    topic: /joint_states
   #    endpoint: "/pang/ws/sub?channel=instant&name=#####&track=skeleton_joint_states&mode=bundle"
+  sensor_topics:
+  #  - name: mobile_device_sensors
+  #    endpoint: "/pang/ws/sub?channel=instant&name=#####&track=mobile_device&mode=bundle"
+  #    imu_topic: /mobile_device/imu
+  #    mag_topic: /mobile_device/magnetic_field
+  #    light_topic: /mobile_device/light
+  #    location_topic: /mobile_device/navsat
+  #    speed_topic: /mobile_device/speed
+  #    frame_id: mobile_imu
+  #    mag_frame_id: mobile_mag
+  #    light_frame_id: mobile_light
+  #    gps_frame_id: mobile_gps
+  #    speed_frame_id: base_link

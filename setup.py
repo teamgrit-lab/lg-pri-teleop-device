@@ -34,6 +34,7 @@ setup(
             'joint_states_node = lg_teleop_device.sensor.joint_states_node:main',
             'joint_states_subscription_node = lg_teleop_device.sensor.joint_states_subscription_node:main',
             'imu_subscription_node = lg_teleop_device.sensor.imu_subscription_node:main',
+            'mobile_sensor_subscription_node = lg_teleop_device.sensor.mobile_sensor_subscription_node:main',
             'network_node = lg_teleop_device.network.network:main',
             'waist_control_node = lg_teleop_device.control.waist_control_node:main',
         ],
