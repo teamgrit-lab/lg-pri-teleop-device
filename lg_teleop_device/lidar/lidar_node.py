@@ -41,6 +41,7 @@ class LidarNode(AbstractTeleopNode):
         self.encoding_time_diff = 0.0
 
         self.network_time = 0.0
+        self.received_fps = 0
 
         self.mime = "lidar/draco"
         self._message_queue = deque(maxlen=120)
@@ -52,6 +53,7 @@ class LidarNode(AbstractTeleopNode):
 
         if pts.size == 0 or colors.size == 0:
             return b''
+        self.received_fps += 1
         if self.processing_timer is not None:
             now = time.time()
             self.processing_time_diff = now - self.processing_timer
@@ -76,13 +78,15 @@ class LidarNode(AbstractTeleopNode):
                 "processing": self.processing_time_diff * 1000,
                 "encoding": self.encoding_time_diff * 1000,
             },
-            "fps": self.fps
+            "receivedFps": self.received_fps,
+            "sentFps": self.fps
         }
         if time.time() - self.network_time > 1.0:
             self.network_time = time.time()
             json_str = json.dumps(json_msg)
-            # self.network_publisher.publish(String(data=json_str))
+            self.network_publisher.publish(String(data=json_str))
             self.fps = 0
+            self.received_fps = 0
         self._message_queue.append(compressed)
         if self.read_timer is None:
             self.read_timer = time.time()
