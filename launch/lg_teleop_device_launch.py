@@ -182,6 +182,33 @@ def generate_launch_description():
                         ]
                     ))
 
+    sensor_subscribe_config = subscribe_config.get('sensor_topics', None)
+    if sensor_subscribe_config is not None:
+        if 'subscribe' in config and 'sensor_topics' in config['subscribe']:
+            for sensor in config['subscribe']['sensor_topics']:
+                print(f"Adding sensor node: {sensor['name']} with host: {config['host']}, port: {config['port']}, endpoint: {sensor['endpoint'].replace('#####', robot_id)}")
+                nodes.append(Node(
+                    package='lg_teleop_device',
+                    executable='mobile_sensor_subscription_node',
+                    name=sensor['name'],
+                    parameters=[
+                        {'name': sensor['name']},
+                        {'host': config['host']},
+                        {'port': int(config['port'])},
+                        {'endpoint': str(sensor['endpoint']).replace("#####", robot_id)},
+                        {'imu_topic': sensor.get('imu_topic', '')},
+                        {'mag_topic': sensor.get('mag_topic', '')},
+                        {'light_topic': sensor.get('light_topic', '')},
+                        {'location_topic': sensor.get('location_topic', '')},
+                        {'speed_topic': sensor.get('speed_topic', '')},
+                        {'frame_id': sensor.get('frame_id', 'imu_link')},
+                        {'mag_frame_id': sensor.get('mag_frame_id', 'mag_link')},
+                        {'light_frame_id': sensor.get('light_frame_id', 'light_link')},
+                        {'gps_frame_id': sensor.get('gps_frame_id', 'gps_link')},
+                        {'speed_frame_id': sensor.get('speed_frame_id', 'base_link')},
+                    ]
+                ))
+
     nodes.append(Node(
         package='lg_teleop_device',
         executable='network_node',
