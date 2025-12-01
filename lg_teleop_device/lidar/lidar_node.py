@@ -79,7 +79,7 @@ class LidarNode(AbstractTeleopNode):
                 "encoding": self.encoding_time_diff * 1000,
             },
             "receivedFps": self.received_fps,
-            "sentFps": self.fps
+            "fps": self.fps
         }
         if time.time() - self.network_time > 1.0:
             self.network_time = time.time()
