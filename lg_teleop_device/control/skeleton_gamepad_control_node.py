@@ -3,8 +3,7 @@ from rclpy.node import Node
 from lg_teleop_device.abstract_teleop_node import AbstractTeleopNode
 import threading, asyncio, json, time
 from sensor_msgs.msg import Joy
-from std_msgs.msg import Bool, String
-from grp_control_msg.srv import SingleInt, Void
+from std_msgs.msg import Bool, String, Float32
 from tf2_ros import Buffer, TransformListener
 from geometry_msgs.msg import TransformStamped
 
@@ -23,8 +22,8 @@ class SkeletonGamepadControlNode(AbstractTeleopNode):
         self.gripper_button_index = self.get_parameter('gripper_button_index').get_parameter_value().integer_value
         self.handedness = self.get_parameter('handedness').get_parameter_value().string_value
 
-        # Decide SingleInt value by handedness (follow arm_control_node logic)
-        self.singleint = 2 if 'left' in self.handedness.lower() else 1
+        # Normalize handedness to topic suffix (default right)
+        self.handedness_suffix = 'left' if 'left' in self.handedness.lower() else 'right'
 
         # ROS interfaces
         self.publisher = self.create_publisher(Joy, self.control_topic, 10)
@@ -35,18 +34,12 @@ class SkeletonGamepadControlNode(AbstractTeleopNode):
         self.tf_buffer = Buffer()
         self.tf_listener = TransformListener(self.tf_buffer, self)
 
-        # Gripper services (same as arm_control_node)
-        self.gripper_select_cli = self.create_client(SingleInt, "/modbus_slave_change")
-        while not self.gripper_select_cli.wait_for_service(timeout_sec=1.0):
-            self.get_logger().info('Service not available, waiting...')
-
-        self.gripper_open_cli = self.create_client(Void, "/grp_open")
-        while not self.gripper_open_cli.wait_for_service(timeout_sec=1.0):
-            self.get_logger().info('Service not available, waiting...')
-
-        self.gripper_close_cli = self.create_client(Void, "/grp_close")
-        while not self.gripper_close_cli.wait_for_service(timeout_sec=1.0):
-            self.get_logger().info('Service not available, waiting...')
+        # Gripper topic publishers
+        self.gripper_open_topic = f"/get/grp/open/{self.handedness_suffix}"
+        self.gripper_close_topic = f"/get/grp/close/{self.handedness_suffix}"
+        self.gripper_open_publisher = self.create_publisher(Float32, self.gripper_open_topic, 10)
+        self.gripper_close_publisher = self.create_publisher(Float32, self.gripper_close_topic, 10)
+        self.gripper_command_value = 30.0
 
         # States
         self.pass_mime = True
@@ -85,15 +78,12 @@ class SkeletonGamepadControlNode(AbstractTeleopNode):
 
     async def _trigger_gripper(self, open_gripper: bool):
         try:
-            req = SingleInt.Request()
-            req.value = self.singleint
-            _ = self.gripper_select_cli.call_async(req)
-
-            req2 = Void.Request()
+            msg = Float32()
+            msg.data = self.gripper_command_value
             if open_gripper:
-                _ = self.gripper_open_cli.call_async(req2)
+                self.gripper_open_publisher.publish(msg)
             else:
-                _ = self.gripper_close_cli.call_async(req2)
+                self.gripper_close_publisher.publish(msg)
             self.gripper_state = 1 if open_gripper else 0
         except Exception as e:
             self.get_logger().error(f"[{self.name}] Failed to trigger gripper: {e}")
