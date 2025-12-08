@@ -3,13 +3,7 @@ from rclpy.node import Node
 from lg_teleop_device.abstract_teleop_node import AbstractTeleopNode
 import threading, asyncio, json
 from sensor_msgs.msg import Joy
-<<<<<<< HEAD
 from std_msgs.msg import Float32
-=======
-from std_msgs.msg import Bool, String, Float32
-from tf2_ros import Buffer, TransformListener
-from geometry_msgs.msg import TransformStamped
->>>>>>> e7b7869e46553dd5988912a5eda264f859cc4db7
 
 
 class SkeletonGamepadControlNode(AbstractTeleopNode):
@@ -23,14 +17,7 @@ class SkeletonGamepadControlNode(AbstractTeleopNode):
         self.gripper_button_index = self.get_parameter('gripper_button_index').get_parameter_value().integer_value
         self.handedness = self.get_parameter('handedness').get_parameter_value().string_value
 
-<<<<<<< HEAD
         self.singleint = 2 if 'left' in self.handedness.lower() else 1
-=======
-        # Normalize handedness to topic suffix (default right)
-        self.handedness_suffix = 'left' if 'left' in self.handedness.lower() else 'right'
-
-        # ROS interfaces
->>>>>>> e7b7869e46553dd5988912a5eda264f859cc4db7
         self.publisher = self.create_publisher(Joy, self.control_topic, 10)
         self.gripper_init_topic = f'/get/grp/init/{self.handedness.lower()}'
         self.gripper_open_topic = f'/get/grp/open/{self.handedness.lower()}'
@@ -41,17 +28,6 @@ class SkeletonGamepadControlNode(AbstractTeleopNode):
         self.gripper_open = self.create_publisher(Float32, self.gripper_open_topic, 10)
         self.gripper_close = self.create_publisher(Float32, self.gripper_close_topic, 10)
 
-<<<<<<< HEAD
-=======
-        # Gripper topic publishers
-        self.gripper_open_topic = f"/get/grp/open/{self.handedness_suffix}"
-        self.gripper_close_topic = f"/get/grp/close/{self.handedness_suffix}"
-        self.gripper_open_publisher = self.create_publisher(Float32, self.gripper_open_topic, 10)
-        self.gripper_close_publisher = self.create_publisher(Float32, self.gripper_close_topic, 10)
-        self.gripper_command_value = 30.0
-
-        # States
->>>>>>> e7b7869e46553dd5988912a5eda264f859cc4db7
         self.pass_mime = True
         self.last_button_state = 0
         self.desired_gripper = False
@@ -82,21 +58,12 @@ class SkeletonGamepadControlNode(AbstractTeleopNode):
     async def _trigger_gripper(self, open_gripper: bool):
         try:
             msg = Float32()
-<<<<<<< HEAD
             if open_gripper:
                 msg.data = self.gripper_command_value
                 self.gripper_open.publish(msg)
             else:
                 msg.data = self.gripper_command_value
                 self.gripper_close.publish(msg)
-=======
-            msg.data = self.gripper_command_value
-            if open_gripper:
-                self.gripper_open_publisher.publish(msg)
-            else:
-                self.gripper_close_publisher.publish(msg)
-            self.gripper_state = 1 if open_gripper else 0
->>>>>>> e7b7869e46553dd5988912a5eda264f859cc4db7
         except Exception as e:
             self.get_logger().error(f"[{self.name}] Error triggering gripper: {e}")
 
