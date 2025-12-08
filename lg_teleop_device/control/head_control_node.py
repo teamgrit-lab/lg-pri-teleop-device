@@ -27,14 +27,57 @@ class HeadControlNode(AbstractTeleopNode):
             self.yaw_topic,
             10
         )
-        # self.pose_publisher = self.create_publisher(
-        #     PoseStamped,
-        #     self.pose_topic,
-        #     10
-        # )
+        self.pose_publisher = self.create_publisher(
+            PoseStamped,
+            self.pose_topic,
+            10
+        )
 
         self.create_timer(10.0, self.timer_callback)
         self.pass_mime = True
+        
+    def calculate_servo_angles(self, pose_stamped):
+        """
+        PoseStamped(Orientation) -> Servo Value (Float32)
+        - Pitch: 1.2(Down, -45deg) ~ 0.6(Up, +45deg)
+        - Yaw: 3.14 Center, +-60deg
+        """
+        q = pose_stamped.pose.orientation
+        x, y, z, w = q.x, q.y, q.z, q.w
+
+        norm = math.sqrt(x*x + y*y + z*z + w*w)
+        
+        if norm == 0:
+            return 3.14, 0.9
+        
+        x /= norm
+        y /= norm
+        z /= norm
+        w /= norm
+
+        sinp = 2.0 * (w * y - z * x)
+        
+        if abs(sinp) >= 1:
+            pitch_rad = math.copysign(math.pi / 2, sinp)
+        else:
+            pitch_rad = math.asin(sinp)
+
+        siny_cosp = 2.0 * (w * z + x * y)
+        cosy_cosp = 1.0 - 2.0 * (y * y + z * z)
+        yaw_rad = math.atan2(siny_cosp, cosy_cosp)
+
+        YAW_CENTER = 3.14
+        YAW_LIMIT = math.radians(60)
+        
+        target_yaw = YAW_CENTER + yaw_rad
+        target_yaw = max(YAW_CENTER - YAW_LIMIT, min(target_yaw, YAW_CENTER + YAW_LIMIT))
+
+        SLOPE = 0.382
+        INTERCEPT = 0.95
+        
+        target_pitch = (SLOPE * pitch_rad) + INTERCEPT
+        target_pitch = max(0.6, min(target_pitch, 1.2))
+        return target_yaw, target_pitch
 
     async def on_received(self, message):
         """
@@ -43,51 +86,31 @@ class HeadControlNode(AbstractTeleopNode):
         """
         try:
             json_data = json.loads(message)
-            print(message)
+            self.get_logger().info(f"[{self.name}] Received message: {message}")
             if 'orientation' not in json_data:
                 self.get_logger().error(f"[{self.name}] Invalid message format: {message}")
                 return
+
+            pose_msg = PoseStamped()
+            pose_msg.header.stamp = self.get_clock().now().to_msg()
+            pose_msg.header.frame_id = "base_link"
+            pose_msg.pose.position.x = -float(json_data['position']['z'])
+            pose_msg.pose.position.y = -float(json_data['position']['x'])
+            pose_msg.pose.position.z = float(json_data['position']['y']) + 1.1
+            pose_msg.pose.orientation.x = -float(json_data['orientation']['z'])
+            pose_msg.pose.orientation.y = -float(json_data['orientation']['x'])
+            pose_msg.pose.orientation.z = float(json_data['orientation']['y'])
+            pose_msg.pose.orientation.w = float(json_data['orientation']['w'])
+
+            self.pose_publisher.publish(pose_msg)
+
+            yaw_value, pitch_value = self.calculate_servo_angles(pose_msg)
             head_yaw_msg = Float32()
-
-#            q = [
-            roll = -float(json_data['orientation']['z'])
-            pitch = -float(json_data['orientation']['x'])
-            yaw = float(json_data['orientation']['y'])
-#                float(json_data['orientation']['w']),
-#            ]
-
-#            roll, pitch, yaw = euler_from_quaternion(q)
-            yaw_data = math.pi + yaw
-            if yaw_data > math.pi + (math.pi / 2):
-                yaw_data = float(math.pi + (math.pi / 2))
-            elif yaw_data < math.pi / 2:
-                yaw_data = float(math.pi / 2)
-#            head_yaw_msg.data = math.pi - yaw
-            head_yaw_msg.data = yaw_data
+            head_yaw_msg.data = yaw_value
             self.yaw_publisher.publish(head_yaw_msg)
-
-
             head_pitch_msg = Float32()
-            data = float(pitch + math.pi / 4)
-            if data > 1.4:
-                data = float(1.4)
-            elif data < 0.0:
-                data = float(0.0)
-            head_pitch_msg.data = data
+            head_pitch_msg.data = pitch_value
             self.pitch_publisher.publish(head_pitch_msg)
-
-            # pose_msg = PoseStamped()
-            # pose_msg.header.stamp = self.get_clock().now().to_msg()
-            # pose_msg.header.frame_id = "base_link"
-            # pose_msg.pose.position.x = -float(json_data['position']['z'])
-            # pose_msg.pose.position.y = -float(json_data['position']['x'])
-            # pose_msg.pose.position.z = float(json_data['position']['y']) + 1.1
-            # pose_msg.pose.orientation.x = -float(json_data['orientation']['z'])
-            # pose_msg.pose.orientation.y = -float(json_data['orientation']['x'])
-            # pose_msg.pose.orientation.z = float(json_data['orientation']['y'])
-            # pose_msg.pose.orientation.w = float(json_data['orientation']['w'])
-
-            # self.pose_publisher.publish(pose_msg)
             
         except Exception as e:
             self.get_logger().error(f"[{self.name}] Error processing message: {e}")
