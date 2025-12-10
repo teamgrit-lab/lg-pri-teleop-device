@@ -3,6 +3,8 @@ from launch import LaunchDescription
 from launch_ros.actions import Node
 import os, json, requests
 from ament_index_python.packages import get_package_share_directory
+from launch.actions import IncludeLaunchDescription
+from launch.launch_description_sources import PythonLaunchDescriptionSource
 
 def generate_launch_description():
     # Locate the config file in the share folder
@@ -220,5 +222,16 @@ def generate_launch_description():
             {'endpoint': f'/pang/ws/pub?channel=instant&name={robot_id}&track=status&mode=bundle'},
         ]
     ))
+
+    package_name = 'lg_draco'
+    launch_file_name = 'lg_draco_launch.py'
+    draco_launch_dir = os.path.join(
+        get_package_share_directory(package_name),
+        'launch',
+    )
+
+    draco_launch_include = IncludeLaunchDescription(
+        PythonLaunchDescriptionSource([draco_launch_dir, '/', launch_file_name]),
+    )
     
-    return LaunchDescription(nodes)
+    return LaunchDescription(nodes + [draco_launch_include])

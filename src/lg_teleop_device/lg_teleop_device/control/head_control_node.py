@@ -73,11 +73,11 @@ class HeadControlNode(AbstractTeleopNode):
         target_yaw = max(YAW_CENTER - YAW_LIMIT, min(target_yaw, YAW_CENTER + YAW_LIMIT))
 
         SLOPE = 0.382
-        INTERCEPT = 0.95
+        INTERCEPT = 0.6
         
         target_pitch = (SLOPE * pitch_rad) + INTERCEPT
-        target_pitch = max(0.6, min(target_pitch, 1.2))
-        return target_yaw, target_pitch
+        target_pitch = max(0.0, min(target_pitch, 1.2))
+        return target_pitch, target_yaw
 
     async def on_received(self, message):
         """

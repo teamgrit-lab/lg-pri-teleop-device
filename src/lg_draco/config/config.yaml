@@ -1,0 +1,7 @@
+host: "" #teleop 서버 주소 ex. 192.168.0.0
+port: "8286"
+robot_id: "" #로봇관리에서 발급받은 로봇ID
+endpoint: "/pang/ws/pub?channel=instant&name=#####&track=point_cloud&mode=bundle"
+input_topic: "/camera/camera/depth/color/points"
+voxel_size: 0.005
+skip_length: 1.0

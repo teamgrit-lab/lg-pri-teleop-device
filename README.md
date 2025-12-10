@@ -44,33 +44,10 @@ source install/setup.bash
 ros2 launch lg_teleop_device lg_teleop_device_launch.py
 ```
 
-C++ 파일 압축 해제
-
-```
-cp ~/lg_draco/config/config.yaml ~/config.yaml
-sudo rm -rf ~/lg_draco
-unzip ~/hula/src/lg-pri-teleop-device/lg_draco.zip ~/
-rm ~/lg_draco/config/config.yaml
-mv ~/config.yaml ~/lg_draco/config/config.yaml
-```
-
-빌드
-
-```
-cd ~/lg_draco/
-colcon build
-```
-
-실행
-
-```
-source ~/lg_draco/install/setup.bash
-ros2 launch lg_draco lg_draco_launch.py
-```
-
 ### 설정(config.yaml) 사용 방법
 
-`lg_teleop_device_launch.py`는 패키지의 `share/lg_teleop_device/config/config.yaml`을 읽어 노드를 동적으로 띄웁니다. 설정을 바꾸려면 이 리포지토리의 `config/config.yaml`을 수정한 뒤 다시 빌드(colcon build)하세요.
+`lg_teleop_device_launch.py`는 패키지의 `share/lg_teleop_device/config/config.yaml`을 읽어 노드를 동적으로 띄웁니다. 설정을 바꾸려면 lg_teleop_device의 `lg_teleop_device/config/config.yaml`을 수정한 뒤 다시 빌드(colcon build)하세요.
+또한 Draco 기반 포인트클라우드 전송을 사용하는 경우, `lg_draco` 패키지의 `lg_draco/config/config.yaml`도 동일하게 수정한 후 다시 빌드해야 설정이 반영됩니다.
 
 #### 핵심 개념
 
