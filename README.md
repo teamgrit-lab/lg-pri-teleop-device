@@ -40,7 +40,7 @@ colcon build
 ### Draco 의존성 설치 (lg_draco)
 
 - apt 대신 git clone으로 설치합니다.
-- 실행: `bash scripts/install_draco.sh`
+- 실행: `sudo bash scripts/install_draco.sh`
   - 기본 설치 경로: `/usr/local` (`PREFIX`로 변경 가능)
   - 기본 버전: `1.5.7` (`DRACO_VERSION`으로 변경 가능)
   - 소스/빌드 경로: `DRACO_SRC_DIR`(기본 `REPO_ROOT/.deps/draco`)

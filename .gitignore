@@ -10,4 +10,7 @@ colcon.meta
 .DS_Store
 Thumbs.db
 
+# Third-party deps cache
+.deps/
+
 
