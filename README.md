@@ -37,6 +37,16 @@ source ~/hula/install/setup.bash
 colcon build
 ```
 
+### Draco 의존성 설치 (lg_draco)
+
+- apt 대신 git clone으로 설치합니다.
+- 실행: `bash scripts/install_draco.sh`
+  - 기본 설치 경로: `/usr/local` (`PREFIX`로 변경 가능)
+  - 기본 버전: `1.5.7` (`DRACO_VERSION`으로 변경 가능)
+  - 소스/빌드 경로: `DRACO_SRC_DIR`(기본 `REPO_ROOT/.deps/draco`)
+- 설치 경로가 기본이 아닐 경우 `CMAKE_PREFIX_PATH`에 추가해 빌드하세요:
+  - `CMAKE_PREFIX_PATH=/custom/prefix:${CMAKE_PREFIX_PATH:-} colcon build --packages-select lg_draco`
+
 실행
 
 ```
@@ -158,4 +168,3 @@ subscribe:
 `left_skeleton_joy`, `right_skeleton_joy`의 경우 아래의 이미지 규격에 따라 axes와 buttons를 `sensor_msgs/Joy` 타입으로 전송합니다.
 
 <img width="711" height="444" alt="image" src="https://github.com/user-attachments/assets/629c4195-a1f7-4eb2-8014-d800b92ea040" />
-
