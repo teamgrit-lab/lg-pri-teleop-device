@@ -11,27 +11,30 @@
 #include <draco/point_cloud/point_cloud_builder.h>
 
 // WebSocket / Network Headers
-#include <boost/beast/core.hpp>
-#include <boost/beast/websocket.hpp>
 #include <boost/asio/connect.hpp>
 #include <boost/asio/ip/tcp.hpp>
+#include <boost/beast/core.hpp>
+#include <boost/beast/websocket.hpp>
 
 // Standard Library
-#include <iostream>
-#include <vector>
+#include <atomic>
 #include <chrono>
+#include <cmath>
+#include <iostream>
 #include <memory>
-#include <unordered_set> 
-#include <cmath>         
+#include <string_view>
+#include <thread>
+#include <unordered_set>
+#include <vector>
 
 // TF2 Headers
-#include <tf2_ros/transform_listener.h>
-#include <tf2_ros/buffer.h>
-#include <geometry_msgs/msg/transform_stamped.hpp>
 #include <tf2/LinearMath/Transform.h>
-#include <tf2_geometry_msgs/tf2_geometry_msgs.hpp> 
+#include <tf2_ros/buffer.h>
+#include <tf2_ros/transform_listener.h>
 
+#include <geometry_msgs/msg/transform_stamped.hpp>
 #include <nlohmann/json.hpp>
+#include <tf2_geometry_msgs/tf2_geometry_msgs.hpp>
 
 namespace beast = boost::beast;
 namespace http = beast::http;
@@ -44,14 +47,14 @@ using json = nlohmann::json;
 // 복셀 인덱싱 구조체
 struct VoxelIndex {
     int x, y, z;
-    bool operator==(const VoxelIndex &other) const {
+    bool operator==(const VoxelIndex& other) const {
         return x == other.x && y == other.y && z == other.z;
     }
 };
 
 // 복셀 해시 함수
 struct VoxelHash {
-    size_t operator()(const VoxelIndex &k) const {
+    size_t operator()(const VoxelIndex& k) const {
         size_t res = 17;
         res = res * 31 + std::hash<int>()(k.x);
         res = res * 31 + std::hash<int>()(k.y);
@@ -61,18 +64,18 @@ struct VoxelHash {
 };
 
 class DracoSenderNode : public rclcpp::Node {
-public:
+   public:
     DracoSenderNode() : Node("draco_sender_node") {
         // 파라미터 선언
         this->declare_parameter("host", "");
         this->declare_parameter("port", "");
         this->declare_parameter("endpoint", "");
         this->declare_parameter("input_topic", "/camera/camera/depth/color/points");
-        
+
         // 필터링 파라미터
-        this->declare_parameter("voxel_size", 0.001); // 1mm 단위
-        this->declare_parameter("skip_length", 1.0f); // 1m 이상 거리는 자름 (카메라 기준)
-        
+        this->declare_parameter("voxel_size", 0.001);  // 1mm 단위
+        this->declare_parameter("skip_length", 1.0f);  // 1m 이상 거리는 자름 (카메라 기준)
+
         // TF 타겟 프레임 (예: 로봇의 바닥)
         this->declare_parameter("target_frame", "base_link");
 
@@ -86,32 +89,67 @@ public:
             exit(EXIT_FAILURE);
         }
 
+        // ping 수신 시각 초기화 및 수신 루프 시작
+        last_ping_ms_.store(now_ms());
+        start_ws_reader();
+
         fps_time = this->now();
         std::string topic_name = this->get_parameter("input_topic").as_string();
-        subscription_ = this->create_subscription<sensor_msgs::msg::PointCloud2>(
-            topic_name, 
-            rclcpp::SensorDataQoS(), 
-            std::bind(&DracoSenderNode::topic_callback, this, std::placeholders::_1)
-        );
+        subscription_ =
+            this->create_subscription<sensor_msgs::msg::PointCloud2>(topic_name, rclcpp::SensorDataQoS(), std::bind(&DracoSenderNode::topic_callback, this, std::placeholders::_1));
         network_publisher_ = this->create_publisher<std_msgs::msg::String>("/network_status", 10);
 
         RCLCPP_INFO(this->get_logger(), "Draco Sender Node Started.");
-        RCLCPP_INFO(this->get_logger(), "Target Frame: %s, Skip Length: %.2fm", 
-            this->get_parameter("target_frame").as_string().c_str(),
-            this->get_parameter("skip_length").as_double());
+        RCLCPP_INFO(this->get_logger(), "Target Frame: %s, Skip Length: %.2fm", this->get_parameter("target_frame").as_string().c_str(),
+                    this->get_parameter("skip_length").as_double());
     }
 
-private:
+   private:
     net::io_context io_context_;
     std::shared_ptr<websocket::stream<tcp::socket>> ws_;
     rclcpp::Subscription<sensor_msgs::msg::PointCloud2>::SharedPtr subscription_;
     rclcpp::Publisher<std_msgs::msg::String>::SharedPtr network_publisher_;
-    
+
     std::shared_ptr<tf2_ros::Buffer> tf_buffer_;
     std::shared_ptr<tf2_ros::TransformListener> tf_listener_;
     rclcpp::Time fps_time;
     int frame_count = 0;
     double fps = 0.0;
+    std::atomic<int64_t> last_ping_ms_{0};
+    std::atomic<bool> stop_reader_{false};
+    std::thread ws_reader_;
+
+    int64_t now_ms() const {
+        return std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::steady_clock::now().time_since_epoch()).count();
+    }
+
+    void start_ws_reader() {
+        // control frame ping 처리
+        ws_->control_callback([this](websocket::frame_type kind, std::string_view) {
+            if (kind == websocket::frame_type::ping) {
+                last_ping_ms_.store(now_ms());
+            }
+        });
+
+        ws_reader_ = std::thread([this]() {
+            beast::flat_buffer buffer;
+            while (!stop_reader_.load()) {
+                beast::error_code ec;
+                ws_->read(buffer, ec);
+                if (ec) {
+                    RCLCPP_WARN(this->get_logger(), "WebSocket read warning: %s", ec.message().c_str());
+                    std::this_thread::sleep_for(std::chrono::milliseconds(200));
+                    continue;
+                }
+                auto data = beast::buffers_to_string(buffer.data());
+                buffer.consume(buffer.size());
+                if (data == "ping") {
+                    last_ping_ms_.store(now_ms());
+                }
+            }
+        });
+        ws_reader_.detach();
+    }
 
     bool init_websocket() {
         try {
@@ -121,59 +159,58 @@ private:
 
             tcp::resolver resolver(io_context_);
             ws_ = std::make_shared<websocket::stream<tcp::socket>>(io_context_);
-            
+
             auto const results = resolver.resolve(host, port);
             auto ep = net::connect(ws_->next_layer(), results);
-            
+
             std::string host_port = host + ":" + std::to_string(ep.port());
-            
+
             ws_->handshake(host_port, endpoint);
             ws_->binary(false);
-            ws_->write(net::buffer("lidar/draco")); 
+            ws_->write(net::buffer("lidar/draco"));
             ws_->binary(true);
-            
+
             RCLCPP_INFO(this->get_logger(), "Connected to WebSocket: %s", host_port.c_str());
             return true;
-        } catch (std::exception &e) {
+        } catch (std::exception& e) {
             RCLCPP_ERROR(this->get_logger(), "WebSocket Init Error: %s", e.what());
             return false;
         }
     }
 
-    draco::EncoderBuffer compress_msg(
-        const sensor_msgs::msg::PointCloud2::SharedPtr msg,
-        const geometry_msgs::msg::TransformStamped& transform) 
-    {
+    draco::EncoderBuffer compress_msg(const sensor_msgs::msg::PointCloud2::SharedPtr msg, const geometry_msgs::msg::TransformStamped& transform) {
         // 1. TF 메시지를 고속 연산용 행렬로 변환
         tf2::Transform tf_mat;
         tf2::fromMsg(transform.transform, tf_mat);
-        
+
         bool need_transform = (msg->header.frame_id != transform.header.frame_id);
 
         sensor_msgs::PointCloud2ConstIterator<float> iter_x(*msg, "x");
         sensor_msgs::PointCloud2ConstIterator<float> iter_y(*msg, "y");
         sensor_msgs::PointCloud2ConstIterator<float> iter_z(*msg, "z");
-        
+
         bool has_rgb = false;
         for (const auto& field : msg->fields) {
-            if (field.name == "rgb" || field.name == "rgba") has_rgb = true;
+            if (field.name == "rgb" || field.name == "rgba")
+                has_rgb = true;
         }
 
         std::vector<float> point_data;
         std::vector<uint8_t> color_data;
-        
+
         size_t estimated_points = msg->width * msg->height;
         point_data.reserve(estimated_points * 3);
         color_data.reserve(estimated_points * 3);
 
         double voxel_size = this->get_parameter("voxel_size").as_double();
-        bool use_sampling = (voxel_size > 0.001); 
-        
+        bool use_sampling = (voxel_size > 0.001);
+
         double skip_length = this->get_parameter("skip_length").as_double();
-        double skip_length_sq = skip_length * skip_length; // 제곱 거리로 비교 (성능 최적화)
+        double skip_length_sq = skip_length * skip_length;  // 제곱 거리로 비교 (성능 최적화)
 
         std::unordered_set<VoxelIndex, VoxelHash> visited_voxels;
-        if(use_sampling) visited_voxels.reserve(estimated_points / 2);
+        if (use_sampling)
+            visited_voxels.reserve(estimated_points / 2);
 
         if (has_rgb) {
             sensor_msgs::PointCloud2ConstIterator<float> iter_rgb(*msg, "rgb");
@@ -183,22 +220,26 @@ private:
                 float raw_y = *iter_y;
                 float raw_z = *iter_z;
 
-                if (std::isnan(raw_x) || std::isnan(raw_y) || std::isnan(raw_z)) continue;
+                if (std::isnan(raw_x) || std::isnan(raw_y) || std::isnan(raw_z))
+                    continue;
 
                 // [B] 거리 필터링 (원본 좌표 기준)
                 // 카메라로부터의 직선 거리가 설정값보다 멀면 제거
-                if ((raw_x*raw_x + raw_y*raw_y + raw_z*raw_z) > skip_length_sq) continue; 
+                if ((raw_x * raw_x + raw_y * raw_y + raw_z * raw_z) > skip_length_sq)
+                    continue;
 
                 // [C] 좌표 변환 (Camera -> Target Frame)
                 float x, y, z;
                 if (need_transform) {
                     tf2::Vector3 p_in(raw_x, raw_y, raw_z);
-                    tf2::Vector3 p_out = tf_mat * p_in; 
+                    tf2::Vector3 p_out = tf_mat * p_in;
                     x = p_out.x();
                     y = p_out.y();
                     z = p_out.z();
                 } else {
-                    x = raw_x; y = raw_y; z = raw_z;
+                    x = raw_x;
+                    y = raw_y;
+                    z = raw_z;
                 }
 
                 // [D] 복셀 샘플링 (변환된 World 좌표 기준)
@@ -210,7 +251,7 @@ private:
                     idx.z = static_cast<int>(std::floor(z / voxel_size));
 
                     if (visited_voxels.find(idx) != visited_voxels.end()) {
-                        continue; // 이미 등록된 복셀이면 스킵
+                        continue;  // 이미 등록된 복셀이면 스킵
                     }
                     visited_voxels.insert(idx);
                 }
@@ -221,7 +262,8 @@ private:
                 uint8_t b = (rgb) & 0xFF;
 
                 // 검은색(0,0,0) 포인트 제거 옵션 (필요시 사용)
-                if (r == 0 && g == 0 && b == 0) continue;
+                if (r == 0 && g == 0 && b == 0)
+                    continue;
 
                 point_data.push_back(x);
                 point_data.push_back(y);
@@ -233,8 +275,9 @@ private:
             }
         }
 
-        if (point_data.empty()) return draco::EncoderBuffer();
-        
+        if (point_data.empty())
+            return draco::EncoderBuffer();
+
         draco::PointCloudBuilder builder;
         builder.Start(point_data.size() / 3);
 
@@ -247,13 +290,13 @@ private:
         std::unique_ptr<draco::PointCloud> draco_cloud = builder.Finalize(false);
 
         draco::Encoder encoder;
-        encoder.SetSpeedOptions(10, 10); // 0(느림/고압축) ~ 10(빠름/저압축)
-        encoder.SetAttributeQuantization(draco::GeometryAttribute::POSITION, 12); // 8-16비트 권장
-        encoder.SetAttributeQuantization(draco::GeometryAttribute::COLOR, 3);    
+        encoder.SetSpeedOptions(10, 10);                                           // 0(느림/고압축) ~ 10(빠름/저압축)
+        encoder.SetAttributeQuantization(draco::GeometryAttribute::POSITION, 12);  // 8-16비트 권장
+        encoder.SetAttributeQuantization(draco::GeometryAttribute::COLOR, 3);
 
         draco::EncoderBuffer buffer;
         draco::Status status = encoder.EncodePointCloudToBuffer(*draco_cloud, &buffer);
-        
+
         if (!status.ok()) {
             RCLCPP_ERROR(this->get_logger(), "Draco Encoding Error: %s", status.error_msg());
             return draco::EncoderBuffer();
@@ -263,37 +306,39 @@ private:
     }
 
     void topic_callback(const sensor_msgs::msg::PointCloud2::SharedPtr msg) {
+        // 최근 10초간 ping 미수신 시 인코딩/전송 스킵
+        if (now_ms() - last_ping_ms_.load() > 10000) {
+            return;
+        }
+
         auto start_time = this->now();
         std::string target_frame = this->get_parameter("target_frame").as_string();
-        
+
         // TF 조회
         geometry_msgs::msg::TransformStamped t_stamped;
         try {
             if (msg->header.frame_id != target_frame) {
                 // 가장 최신 TF 가져오기
-                t_stamped = tf_buffer_->lookupTransform(
-                    target_frame, 
-                    msg->header.frame_id, 
-                    tf2::TimePointZero 
-                );
+                t_stamped = tf_buffer_->lookupTransform(target_frame, msg->header.frame_id, tf2::TimePointZero);
             } else {
                 t_stamped.header.frame_id = target_frame;
                 t_stamped.child_frame_id = target_frame;
                 t_stamped.transform.rotation.w = 1.0;
             }
-        } catch (tf2::TransformException &ex) {
+        } catch (tf2::TransformException& ex) {
             // TF가 아직 준비되지 않았으면 경고 출력 후 이번 프레임 스킵
             RCLCPP_WARN_THROTTLE(this->get_logger(), *this->get_clock(), 2000, "TF Lookup Failed: %s", ex.what());
-            return; 
+            return;
         }
         auto tf_time = this->now() - start_time;
 
         draco::EncoderBuffer buffer;
-        try{
+        try {
             // 압축 실행 (내부에서 필터링 및 변환 수행)
             buffer = compress_msg(msg, t_stamped);
-            if (buffer.size() == 0) return;
-        } catch(std::exception &e){
+            if (buffer.size() == 0)
+                return;
+        } catch (std::exception& e) {
             RCLCPP_ERROR(this->get_logger(), "Compression Exception: %s", e.what());
             return;
         }
@@ -305,14 +350,7 @@ private:
             fps = frame_count;
             fps_time = this->now();
             frame_count = 0;
-            json delay_info = {
-                {"name", "point_cloud"},
-                {"processingTimes_ms", {
-                    {"tf", tf_time.seconds() * 1000.0},
-                    {"compress", compress_time.seconds() * 1000.0}
-                }},
-                {"fps", fps}
-            };
+            json delay_info = {{"name", "point_cloud"}, {"processingTimes_ms", {{"tf", tf_time.seconds() * 1000.0}, {"compress", compress_time.seconds() * 1000.0}}}, {"fps", fps}};
             std_msgs::msg::String delay_msg;
             delay_msg.data = delay_info.dump();
             network_publisher_->publish(delay_msg);
@@ -321,17 +359,16 @@ private:
         try {
             // 웹소켓 전송
             ws_->write(net::buffer(buffer.data(), buffer.size()));
-            
+
             // [디버그용 로그] 전송 성공 시 1초에 한 번만 출력 (필요시 주석 해제)
             // RCLCPP_INFO_THROTTLE(this->get_logger(), *this->get_clock(), 1000, "Sent %zu bytes", buffer.size());
-
-        } catch (std::exception &e) {
+        } catch (std::exception& e) {
             RCLCPP_ERROR(this->get_logger(), "WebSocket Write Error: %s", e.what());
         }
     }
 };
 
-int main(int argc, char * argv[]) {
+int main(int argc, char* argv[]) {
     rclcpp::init(argc, argv);
     rclcpp::spin(std::make_shared<DracoSenderNode>());
     rclcpp::shutdown();
