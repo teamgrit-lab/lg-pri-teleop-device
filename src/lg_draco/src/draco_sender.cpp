@@ -152,6 +152,7 @@ class DracoSenderNode : public rclcpp::Node {
                 if (ec) {
                     RCLCPP_WARN(this->get_logger(), "WebSocket read warning: %s", ec.message().c_str());
                     close_current_ws();
+                    reconnect_with_retry(-1, 500);
                     std::this_thread::sleep_for(std::chrono::milliseconds(500));
                     continue;
                 }
@@ -440,6 +441,7 @@ class DracoSenderNode : public rclcpp::Node {
         } catch (std::exception& e) {
             RCLCPP_ERROR(this->get_logger(), "WebSocket Write Error: %s", e.what());
             connected_.store(false);
+            reconnect_with_retry(-1, 500);
         }
     }
 };
