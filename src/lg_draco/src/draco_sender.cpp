@@ -122,6 +122,7 @@ class DracoSenderNode : public rclcpp::Node {
     std::mutex ws_mutex_;
     std::atomic<bool> connected_{false};
     std::atomic<bool> reconnecting_{false};
+    std::atomic<int64_t> last_reconnect_start_{0};
 
     int64_t now_ms() const {
         return std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::steady_clock::now().time_since_epoch()).count();
@@ -214,11 +215,21 @@ class DracoSenderNode : public rclcpp::Node {
     }
 
     bool reconnect_with_retry(int attempts = -1, int delay_ms = 500) {
+        // stale 보호: reconnecting_이 오래 true면 강제 초기화
+        if (reconnecting_.load() && !connected_.load()) {
+            int64_t elapsed = now_ms() - last_reconnect_start_.load();
+            if (elapsed > 5000) {  // 5초 이상 정체 시 플래그 리셋
+                reconnecting_.store(false);
+                RCLCPP_WARN(this->get_logger(), "WebSocket reconnect flag stale (elapsed=%ldms). Resetting.", elapsed);
+            }
+        }
+
         bool expected = false;
         if (!reconnecting_.compare_exchange_strong(expected, true)) {
             RCLCPP_INFO(this->get_logger(), "WebSocket reconnect already running; skip starting a new one");
             return false;  // 이미 재연결 중
         }
+        last_reconnect_start_.store(now_ms());
         auto on_exit = std::unique_ptr<void, std::function<void(void*)>>(nullptr, [this](void*) { reconnecting_.store(false); });
 
         int tries = 0;
