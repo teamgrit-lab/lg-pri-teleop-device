@@ -38,6 +38,7 @@ class TopicMediaNode(AbstractTeleopNode):
         self.network_time = 0.0
 
         self.mime_sent = False
+        self.last_ping_time = time.time()
 
         self.suber = self.create_subscription(
             Image,
@@ -48,6 +49,10 @@ class TopicMediaNode(AbstractTeleopNode):
 
     def callback(self, msg):
         try:
+            # 최근 ping이 10초 이상 없으면 인코딩 자체를 건너뛴다.
+            if time.time() - self.last_ping_time > 10:
+                return
+
             if self.read_timer is not None:
                 now = time.time()
                 self.read_time_diff = now - self.read_timer
@@ -188,9 +193,21 @@ class TopicMediaNode(AbstractTeleopNode):
         This method should be overridden in subclasses to process the received message.
         :param message: The message received from the WebSocket.
         """
-        self.get_logger().info(f"[{self.name}] Received message: {message}")
-        # Subclasses should implement this method to handle the received message
-    
+        try:
+            if isinstance(message, bytes):
+                # Ping은 UTF-8로 들어오므로 그대로 디코딩
+                decoded = message.decode("utf-8", errors="ignore")
+            else:
+                decoded = message
+
+            if isinstance(decoded, str) and decoded.strip().lower() == "ping":
+                self.last_ping_time = time.time()
+                return
+
+            self.get_logger().info(f"[{self.name}] Received message: {decoded}")
+        except Exception as e:
+            self.get_logger().error(f"[{self.name}] Failed to process incoming message: {e}")
+
 def main(args=None):
     rclpy.init(args=args)
     Gst.init(None)
