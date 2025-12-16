@@ -37,9 +37,8 @@ source ~/hula/install/setup.bash
 colcon build
 ```
 
-### Draco 의존성 설치 (lg_draco)
+### 의존성 설치
 
-- apt 대신 git clone으로 설치합니다.
 - 실행: `sudo bash scripts/install_draco.sh`
   - 기본 설치 경로: `/usr/local` (`PREFIX`로 변경 가능)
   - 기본 버전: `1.5.7` (`DRACO_VERSION`으로 변경 가능)
