@@ -20,8 +20,10 @@
 #include <atomic>
 #include <chrono>
 #include <cmath>
+#include <functional>
 #include <iostream>
 #include <memory>
+#include <mutex>
 #include <string_view>
 #include <thread>
 #include <unordered_set>
@@ -83,10 +85,9 @@ class DracoSenderNode : public rclcpp::Node {
         tf_buffer_ = std::make_shared<tf2_ros::Buffer>(this->get_clock());
         tf_listener_ = std::make_shared<tf2_ros::TransformListener>(*tf_buffer_);
 
-        // 웹소켓 초기화
-        if (!init_websocket()) {
-            RCLCPP_ERROR(this->get_logger(), "Failed to initialize WebSocket. Exiting...");
-            exit(EXIT_FAILURE);
+        // 웹소켓 초기화 (무한 재시도 포함)
+        if (!reconnect_with_retry(-1, 1000)) {
+            RCLCPP_ERROR(this->get_logger(), "Initial WebSocket connection not established yet. Will keep retrying in background.");
         }
 
         // ping 수신 시각 초기화 및 수신 루프 시작
@@ -118,27 +119,40 @@ class DracoSenderNode : public rclcpp::Node {
     std::atomic<int64_t> last_ping_ms_{0};
     std::atomic<bool> stop_reader_{false};
     std::thread ws_reader_;
+    std::mutex ws_mutex_;
+    std::atomic<bool> connected_{false};
+    std::atomic<bool> reconnecting_{false};
 
     int64_t now_ms() const {
         return std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::steady_clock::now().time_since_epoch()).count();
     }
 
     void start_ws_reader() {
-        // control frame ping 처리
-        ws_->control_callback([this](websocket::frame_type kind, std::string_view) {
-            if (kind == websocket::frame_type::ping) {
-                last_ping_ms_.store(now_ms());
-            }
-        });
-
         ws_reader_ = std::thread([this]() {
             beast::flat_buffer buffer;
             while (!stop_reader_.load()) {
+                if (!ensure_connection()) {
+                    std::this_thread::sleep_for(std::chrono::milliseconds(500));
+                    continue;
+                }
+
+                std::shared_ptr<websocket::stream<tcp::socket>> ws_copy;
+                {
+                    std::lock_guard<std::mutex> lock(ws_mutex_);
+                    ws_copy = ws_;
+                }
+                if (!ws_copy) {
+                    connected_.store(false);
+                    std::this_thread::sleep_for(std::chrono::milliseconds(200));
+                    continue;
+                }
+
                 beast::error_code ec;
-                ws_->read(buffer, ec);
+                ws_copy->read(buffer, ec);
                 if (ec) {
                     RCLCPP_WARN(this->get_logger(), "WebSocket read warning: %s", ec.message().c_str());
-                    std::this_thread::sleep_for(std::chrono::milliseconds(200));
+                    close_current_ws();
+                    std::this_thread::sleep_for(std::chrono::milliseconds(500));
                     continue;
                 }
                 auto data = beast::buffers_to_string(buffer.data());
@@ -151,31 +165,74 @@ class DracoSenderNode : public rclcpp::Node {
         ws_reader_.detach();
     }
 
-    bool init_websocket() {
+    void close_current_ws() {
+        std::lock_guard<std::mutex> lock(ws_mutex_);
+        if (ws_) {
+            beast::error_code ec;
+            if (ws_->is_open()) {
+                ws_->close(websocket::close_code::normal, ec);
+            }
+            ws_.reset();
+        }
+        connected_.store(false);
+    }
+
+    bool connect_once() {
         try {
             std::string host = this->get_parameter("host").as_string();
             std::string port = this->get_parameter("port").as_string();
             std::string endpoint = this->get_parameter("endpoint").as_string();
 
             tcp::resolver resolver(io_context_);
-            ws_ = std::make_shared<websocket::stream<tcp::socket>>(io_context_);
-
             auto const results = resolver.resolve(host, port);
-            auto ep = net::connect(ws_->next_layer(), results);
+
+            auto new_ws = std::make_shared<websocket::stream<tcp::socket>>(io_context_);
+            auto ep = net::connect(new_ws->next_layer(), results);
 
             std::string host_port = host + ":" + std::to_string(ep.port());
 
-            ws_->handshake(host_port, endpoint);
-            ws_->binary(false);
-            ws_->write(net::buffer("lidar/draco"));
-            ws_->binary(true);
+            new_ws->handshake(host_port, endpoint);
+            new_ws->binary(false);
+            new_ws->write(net::buffer("lidar/draco"));
+            new_ws->binary(true);
 
+            {
+                std::lock_guard<std::mutex> lock(ws_mutex_);
+                ws_ = new_ws;
+            }
+            connected_.store(true);
+            last_ping_ms_.store(now_ms());
             RCLCPP_INFO(this->get_logger(), "Connected to WebSocket: %s", host_port.c_str());
             return true;
         } catch (std::exception& e) {
             RCLCPP_ERROR(this->get_logger(), "WebSocket Init Error: %s", e.what());
             return false;
         }
+    }
+
+    bool reconnect_with_retry(int attempts = -1, int delay_ms = 500) {
+        if (reconnecting_.exchange(true)) {
+            return false;  // 이미 재연결 중
+        }
+        auto on_exit = std::unique_ptr<void, std::function<void(void*)>>(nullptr, [this](void*) { reconnecting_.store(false); });
+
+        int tries = 0;
+        while (attempts < 0 || tries < attempts) {
+            close_current_ws();
+            if (connect_once()) {
+                return true;
+            }
+            ++tries;
+            std::this_thread::sleep_for(std::chrono::milliseconds(delay_ms));
+        }
+        return false;
+    }
+
+    bool ensure_connection() {
+        if (connected_.load()) {
+            return true;
+        }
+        return reconnect_with_retry();
     }
 
     draco::EncoderBuffer compress_msg(const sensor_msgs::msg::PointCloud2::SharedPtr msg, const geometry_msgs::msg::TransformStamped& transform) {
@@ -358,12 +415,29 @@ class DracoSenderNode : public rclcpp::Node {
 
         try {
             // 웹소켓 전송
-            ws_->write(net::buffer(buffer.data(), buffer.size()));
+            if (!ensure_connection()) {
+                RCLCPP_WARN_THROTTLE(this->get_logger(), *this->get_clock(), 2000, "WebSocket not connected. Skipping frame.");
+                return;
+            }
+
+            std::shared_ptr<websocket::stream<tcp::socket>> ws_copy;
+            {
+                std::lock_guard<std::mutex> lock(ws_mutex_);
+                ws_copy = ws_;
+            }
+            if (!ws_copy) {
+                RCLCPP_WARN_THROTTLE(this->get_logger(), *this->get_clock(), 2000, "WebSocket handle missing. Skipping frame.");
+                connected_.store(false);
+                return;
+            }
+
+            ws_copy->write(net::buffer(buffer.data(), buffer.size()));
 
             // [디버그용 로그] 전송 성공 시 1초에 한 번만 출력 (필요시 주석 해제)
             // RCLCPP_INFO_THROTTLE(this->get_logger(), *this->get_clock(), 1000, "Sent %zu bytes", buffer.size());
         } catch (std::exception& e) {
             RCLCPP_ERROR(this->get_logger(), "WebSocket Write Error: %s", e.what());
+            connected_.store(false);
         }
     }
 };
