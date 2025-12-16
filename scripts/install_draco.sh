@@ -36,6 +36,15 @@ require_cmd git
 require_cmd cmake
 require_cmd c++
 
+# (선택) Ubuntu 환경에서 lg_draco 빌드 의존성 설치
+if command -v apt-get >/dev/null 2>&1; then
+  echo "[info] apt-get 감지: GStreamer 빌드 의존성을 설치합니다."
+  sudo apt-get update
+  sudo apt-get install -y pkg-config libgstreamer1.0-dev libgstreamer-plugins-base1.0-dev
+else
+  echo "[info] apt-get 미탐지: GStreamer 개발 패키지를 수동 설치하세요."
+fi
+
 mkdir -p "$(dirname "$DRACO_SRC_DIR")"
 
 if [ ! -d "$DRACO_SRC_DIR/.git" ]; then
