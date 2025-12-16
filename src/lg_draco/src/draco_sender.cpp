@@ -150,7 +150,8 @@ class DracoSenderNode : public rclcpp::Node {
                 beast::error_code ec;
                 ws_copy->read(buffer, ec);
                 if (ec) {
-                    RCLCPP_WARN(this->get_logger(), "WebSocket read warning: %s", ec.message().c_str());
+                    RCLCPP_WARN(this->get_logger(), "WebSocket read warning: %s (connected=%d, reconnecting=%d)", ec.message().c_str(), static_cast<int>(connected_.load()),
+                                static_cast<int>(reconnecting_.load()));
                     close_current_ws();
                     reconnect_with_retry(-1, 500);
                     std::this_thread::sleep_for(std::chrono::milliseconds(500));
@@ -215,13 +216,14 @@ class DracoSenderNode : public rclcpp::Node {
     bool reconnect_with_retry(int attempts = -1, int delay_ms = 500) {
         bool expected = false;
         if (!reconnecting_.compare_exchange_strong(expected, true)) {
-            RCLCPP_WARN(this->get_logger(), "WebSocket reconnect already in progress");
+            RCLCPP_INFO(this->get_logger(), "WebSocket reconnect already running; skip starting a new one");
             return false;  // 이미 재연결 중
         }
         auto on_exit = std::unique_ptr<void, std::function<void(void*)>>(nullptr, [this](void*) { reconnecting_.store(false); });
 
         int tries = 0;
-        RCLCPP_WARN(this->get_logger(), "WebSocket reconnect loop start (attempts=%s, delay_ms=%d)", (attempts < 0 ? "inf" : std::to_string(attempts).c_str()), delay_ms);
+        std::string attempts_str = (attempts < 0) ? "inf" : std::to_string(attempts);
+        RCLCPP_WARN(this->get_logger(), "WebSocket reconnect loop start (attempts=%s, delay_ms=%d)", attempts_str.c_str(), delay_ms);
         while (attempts < 0 || tries < attempts) {
             close_current_ws();
             RCLCPP_WARN(this->get_logger(), "WebSocket reconnect attempt #%d", tries + 1);
