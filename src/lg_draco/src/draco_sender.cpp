@@ -183,6 +183,7 @@ class DracoSenderNode : public rclcpp::Node {
             std::string port = this->get_parameter("port").as_string();
             std::string endpoint = this->get_parameter("endpoint").as_string();
 
+            io_context_.restart();  // 이전 실패로 stop 상태가 되었을 수 있으니 재시작
             tcp::resolver resolver(io_context_);
             auto const results = resolver.resolve(host, port);
 
@@ -219,6 +220,7 @@ class DracoSenderNode : public rclcpp::Node {
         int tries = 0;
         while (attempts < 0 || tries < attempts) {
             close_current_ws();
+            RCLCPP_WARN(this->get_logger(), "WebSocket reconnect attempt #%d", tries + 1);
             if (connect_once()) {
                 return true;
             }
